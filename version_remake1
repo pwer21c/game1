@@ -1,0 +1,208 @@
+import random
+import pygame
+from pygame.locals import (
+    K_DOWN,
+    K_ESCAPE,
+    K_LEFT,
+    K_RIGHT,
+    K_UP,
+    K_SPACE,
+    KEYDOWN,
+    QUIT,
+    RLEACCEL,
+)
+
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super(Player, self).__init__() 
+        self.surf = pygame.image.load("whale5.png").convert()
+        self.surf.set_colorkey((255, 255, 255), RLEACCEL)
+        self.rect = self.surf.get_rect()
+
+    def update(self, pressed_keys):
+        if pressed_keys[K_UP]:
+            self.rect.move_ip(0, -5)
+        if pressed_keys[K_DOWN]:
+            self.rect.move_ip(0, 5)
+        if pressed_keys[K_LEFT]:
+            self.rect.move_ip(-5, 0)
+        if pressed_keys[K_RIGHT]:
+            self.rect.move_ip(5, 0)
+
+        if self.rect.left < 0:
+            self.rect.left = 0
+        elif self.rect.right > SCREEN_WIDTH:
+            self.rect.right = SCREEN_WIDTH
+        if self.rect.top <= 0:
+            self.rect.top = 0
+        elif self.rect.bottom >= SCREEN_HEIGHT:
+            self.rect.bottom = SCREEN_HEIGHT
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self):
+        super(Enemy, self).__init__()
+        self.surf = pygame.image.load("fish_missile1.png").convert()
+        self.surf.set_colorkey((255, 255, 255), RLEACCEL)
+        self.rect = self.surf.get_rect(
+            center=(
+                random.randint(SCREEN_WIDTH + 20, SCREEN_WIDTH + 100),
+                random.randint(0, SCREEN_HEIGHT),
+            )
+        )
+        self.speed = random.randint(5, 20)
+
+    def update(self):
+        self.rect.move_ip(-self.speed, 0)
+        if self.rect.right < 0:
+            self.kill()
+
+class Seaweed(pygame.sprite.Sprite):
+    def __init__(self):
+        super(Seaweed, self).__init__()
+        # 해초 이미지를 불러오고 크기를 작은 범위에서 랜덤하게 조정
+        self.original_surf = pygame.image.load("seaweed1.png").convert()
+        self.original_surf.set_colorkey((255, 255, 255), RLEACCEL)
+        scale_factor = random.uniform(0.1, 0.4)  # 크기를 10%에서 40%로 더 작게 조정
+        self.surf = pygame.transform.scale(self.original_surf, 
+                                           (int(self.original_surf.get_width() * scale_factor),
+                                            int(self.original_surf.get_height() * scale_factor)))
+        self.rect = self.surf.get_rect(
+            center=(
+                random.randint(SCREEN_WIDTH + 20, SCREEN_WIDTH + 100),  # 화면 오른쪽에서 스폰
+                SCREEN_HEIGHT - random.randint(10, 30)  # 해초가 바닥에서 조금 띄워져 스폰되도록 설정
+            )
+        )
+
+    def update(self):
+        self.rect.move_ip(-3, 0)  # 해초의 이동 속도를 더 천천히 조정
+        if self.rect.right < 0:
+            self.kill()
+
+class Bubble(pygame.sprite.Sprite):
+    def __init__(self):
+        super(Bubble, self).__init__()
+        self.surf = pygame.image.load("bubble1.png").convert()
+        self.surf.set_colorkey((255, 255, 255), RLEACCEL)
+        
+        # Randomly set size and position
+        self.size = random.randint(20, 50)
+        self.surf = pygame.transform.scale(self.surf, (self.size, self.size))
+        self.rect = self.surf.get_rect(
+            center=(
+                random.randint(SCREEN_WIDTH + 20, SCREEN_WIDTH + 100),
+                random.randint(0, SCREEN_HEIGHT),
+            )
+        )
+            
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super(Bullet, self).__init__()
+        self.surf = pygame.image.load("bullet.png").convert()
+        self.surf.set_colorkey((255, 255, 255), RLEACCEL)
+        self.rect = self.surf.get_rect(
+            center=pos
+        )
+        self.speed = 10
+
+    def update(self):
+        self.rect.move_ip(self.speed, 0)
+        if self.rect.left > SCREEN_WIDTH:
+            self.kill()
+
+pygame.mixer.init()
+pygame.init()
+clock = pygame.time.Clock()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+ADDENEMY = pygame.USEREVENT + 1
+pygame.time.set_timer(ADDENEMY, 250)
+ADDSEAWEED = pygame.USEREVENT + 2
+pygame.time.set_timer(ADDSEAWEED, 3000)
+ADDBUBBLE = pygame.USEREVENT + 2  # 구름을 기포로 바꾼 후 이벤트 이름도 수정
+pygame.time.set_timer(ADDBUBBLE, 1000)
+
+player = Player()
+
+enemies = pygame.sprite.Group()
+bubbles = pygame.sprite.Group()
+seaweeds = pygame.sprite.Group()
+bullets = pygame.sprite.Group()
+all_sprites = pygame.sprite.Group()
+all_sprites.add(player)
+
+pygame.mixer.music.load("Apoxode_-_Electric_1.mp3")
+pygame.mixer.music.play(loops=-1)
+
+move_up_sound = pygame.mixer.Sound("Rising_putter.ogg")
+move_down_sound = pygame.mixer.Sound("Falling_putter.ogg")
+collision_sound = pygame.mixer.Sound("Collision.ogg")
+
+move_up_sound.set_volume(0.5)
+move_down_sound.set_volume(0.5)
+collision_sound.set_volume(0.5)
+
+running = True
+
+while running:
+    for event in pygame.event.get():
+        if event.type == KEYDOWN:
+            if event.key == K_ESCAPE:
+                running = False
+
+            if event.key == K_SPACE:
+                new_bullet = Bullet(player.rect.midright)
+                bullets.add(new_bullet)
+                all_sprites.add(new_bullet)
+
+        elif event.type == QUIT:
+            running = False
+
+        elif event.type == ADDENEMY:
+            new_enemy = Enemy()
+            enemies.add(new_enemy)
+            all_sprites.add(new_enemy)
+
+        elif event.type == ADDSEAWEED:
+            new_seaweed = Seaweed()
+            seaweeds.add(new_seaweed)
+            all_sprites.add(new_seaweed)
+            
+        elif event.type == ADDBUBBLE:  # 기포 추가 이벤트 처리
+            new_bubble = Bubble()
+            bubbles.add(new_bubble)
+            all_sprites.add(new_bubble)
+    
+    pressed_keys = pygame.key.get_pressed()
+    player.update(pressed_keys)
+
+    enemies.update()
+    seaweeds.update()
+    bullets.update()
+    bubbles.update()
+
+    screen.fill((135, 206, 250))
+
+    for entity in all_sprites:
+        screen.blit(entity.surf, entity.rect)
+
+    for bullet in bullets:
+        enemies_hit = pygame.sprite.spritecollide(bullet, enemies, True)
+        if enemies_hit:
+            bullet.kill()
+
+    if pygame.sprite.spritecollideany(player, enemies):
+        player.kill()
+        move_up_sound.stop()
+        move_down_sound.stop()
+        collision_sound.play()
+        running = False
+
+    pygame.display.flip()
+    clock.tick(30)
+
+pygame.mixer.music.stop()
+pygame.mixer.quit()
+
